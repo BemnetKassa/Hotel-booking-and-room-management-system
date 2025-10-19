@@ -1,28 +1,52 @@
-import prisma from "../config/prisma.js";
-import { io } from "../server.js";
+import Room from "../models/room.model.js";
 
+// Get all rooms
 export const getRooms = async (req, res) => {
-  const rooms = await prisma.room.findMany();
-  res.json(rooms);
+  try {
+    const rooms = await Room.find();
+    res.json(rooms);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch rooms" });
+  }
 };
 
+// Get single room
+export const getRoomById = async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.id);
+    if (!room) return res.status(404).json({ message: "Room not found" });
+    res.json(room);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch room" });
+  }
+};
+
+// Create room (Admin)
 export const createRoom = async (req, res) => {
-  const { name, type, price, status } = req.body;
-  const room = await prisma.room.create({ data: { name, type, price, status } });
-  res.status(201).json(room);
+  try {
+    const room = await Room.create(req.body);
+    res.status(201).json(room);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to create room" });
+  }
 };
 
-export const updateRoomStatus = async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
+// Update room
+export const updateRoom = async (req, res) => {
+  try {
+    const room = await Room.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(room);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update room" });
+  }
+};
 
-  const updated = await prisma.room.update({
-    where: { id: Number(id) },
-    data: { status },
-  });
-
-  // 🔄 Emit real-time room update
-  io.emit("room-status-update", updated);
-
-  res.json(updated);
+// Delete room
+export const deleteRoom = async (req, res) => {
+  try {
+    await Room.findByIdAndDelete(req.params.id);
+    res.json({ message: "Room deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete room" });
+  }
 };

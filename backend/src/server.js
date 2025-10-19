@@ -3,11 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
-
-import authRoutes from "./routes/auth.routes.js";
-import roomRoutes from "./routes/room.routes.js";
-import bookingRoutes from "./routes/booking.routes.js";
-import paymentRoutes from "./routes/payment.routes.js";
+import routes from "./routes/index.js";
 
 dotenv.config();
 
@@ -26,10 +22,7 @@ io.on("connection", (socket) => {
 });
 
 // API routes
-app.use("/api/auth", authRoutes);
-app.use("/api/rooms", roomRoutes);
-app.use("/api/bookings", bookingRoutes);
-app.use("/api/payments", paymentRoutes);
+app.use("/api", routes);
 
 app.get("/", (req, res) => res.send("🏨 Hotel Booking API is running..."));
 
