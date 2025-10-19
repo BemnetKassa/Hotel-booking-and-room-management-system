@@ -1,12 +1,17 @@
-import express from 'express';
-import * as bookingController from '../controllers/booking.controller.js';
-import { requireAuth } from '../middlewares/auth.js';
+import express from "express";
+import {
+  createBooking,
+  getBookings,
+  getUserBookings,
+  cancelBooking,
+} from "../controllers/booking.controller.js";
+import { protect } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.post('/', requireAuth, bookingController.createBooking);
-router.get('/', requireAuth, bookingController.listBookings);
-router.get('/:id', requireAuth, bookingController.getBooking);
-router.post('/:id/cancel', requireAuth, bookingController.cancelBooking);
+router.get("/", protect, getBookings);
+router.get("/my-bookings", protect, getUserBookings);
+router.post("/", protect, createBooking);
+router.delete("/:id", protect, cancelBooking);
 
 export default router;
