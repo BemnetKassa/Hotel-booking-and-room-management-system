@@ -1,17 +1,23 @@
+// src/routes/booking.routes.js
 import express from "express";
 import {
   createBooking,
   getBookings,
-  getUserBookings,
   cancelBooking,
+  confirmBooking,
+  getUserBookings,
 } from "../controllers/booking.controller.js";
-import { protect } from "../middlewares/auth.middleware.js";
+import { protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.get("/", protect, getBookings);
-router.get("/my-bookings", protect, getUserBookings);
-router.post("/", protect, createBooking);
-router.delete("/:id", protect, cancelBooking);
+// Public booking endpoint (no auth) — customers can create booking
+router.post("/", createBooking);
+
+// Admin endpoints
+router.get("/", protect, getBookings); // get all bookings (admin)
+router.get("/my-bookings", protect, getUserBookings); // admin or user based on implementation
+router.patch("/:id/cancel", protect, cancelBooking);
+router.patch("/:id/confirm", protect, confirmBooking);
 
 export default router;

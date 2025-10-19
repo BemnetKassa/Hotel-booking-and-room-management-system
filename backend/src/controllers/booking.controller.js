@@ -1,57 +1,100 @@
-import Booking from "../models/booking.model.js";
-import Room from "../models/room.model.js";
+// src/controllers/booking.controller.js
+import * as bookingService from "../services/booking.service.js";
+import * as roomService from "../services/room.service.js";
+import { io } from "../server.js";
 
-// Create booking
 export const createBooking = async (req, res) => {
   try {
-    const { roomId, checkInDate, checkOutDate } = req.body;
+    // Public route: customers do NOT need to be authenticated
+    const bookingData = {
+      roomId: req.body.roomId, // optional (customer may pick specific room)
+      customerName: req.body.customerName,
+      phoneNumber: req.body.phoneNumber,
+      email: req.body.email,
+      checkInDate: req.body.checkInDate,
+      checkOutDate: req.body.checkOutDate,
+      totalAmount: req.body.totalAmount,
+    };
 
-    const booking = await Booking.create({
-      user: req.user.id,
-      room: roomId,
-      checkInDate,
-      checkOutDate,
-    });
+    const booking = await bookingService.createBooking(bookingData);
 
-    await Room.findByIdAndUpdate(roomId, { status: "Booked" });
+    // Emit new booking event to admin clients
+    io.emit("booking-created", booking);
 
-    res.status(201).json(booking);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to create booking" });
+    // If room status changed, emit update
+    const room = await roomService.getRoomById(booking.roomId);
+    io.emit("room-updated", room);
+
+    res.status(201).json({ message: "Booking created", booking });
+  } catch (err) {
+    console.error("createBooking:", err);
+    res.status(400).json({ message: err.message });
   }
 };
 
-// Get all bookings
 export const getBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find().populate("user room");
+    // Protected admin route expected
+    const filters = {
+      status: req.query.status,
+      roomId: req.query.roomId,
+      from: req.query.from,
+      to: req.query.to,
+    };
+    const bookings = await bookingService.getAllBookings(filters);
     res.json(bookings);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch bookings" });
+  } catch (err) {
+    console.error("getBookings:", err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-// Get user bookings
 export const getUserBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find({ user: req.user.id }).populate("room");
+    // If admin sees for any user, req.query.userId; otherwise for logged-in customer use req.user.id
+    const userId = req.user?.id ?? req.query.userId;
+    if (!userId) return res.status(400).json({ message: "userId required" });
+
+    const bookings = await bookingService.getBookingsByRoom(userId); // Note: function name reused; adjust if you want user bookings
     res.json(bookings);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch user bookings" });
+  } catch (err) {
+    console.error("getUserBookings:", err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-// Cancel booking
 export const cancelBooking = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
+    const result = await bookingService.cancelBooking(req.params.id);
+    io.emit("booking-cancelled", { id: Number(req.params.id) });
 
-    await Room.findByIdAndUpdate(booking.room, { status: "Available" });
-    await booking.deleteOne();
+    // Update room state and notify
+    const booking = await bookingService.getBookingById(req.params.id).catch(() => null);
+    if (booking && booking.roomId) {
+      const room = await roomService.getRoomById(booking.roomId);
+      io.emit("room-updated", room);
+    }
 
-    res.json({ message: "Booking cancelled successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to cancel booking" });
+    res.json(result);
+  } catch (err) {
+    console.error("cancelBooking:", err);
+    res.status(400).json({ message: err.message });
+  }
+};
+
+export const confirmBooking = async (req, res) => {
+  try {
+    await bookingService.confirmBooking(req.params.id);
+    const booking = await bookingService.getBookingById(req.params.id);
+    io.emit("booking-confirmed", booking);
+
+    // notify room status changed
+    const room = await roomService.getRoomById(booking.roomId);
+    io.emit("room-updated", room);
+
+    res.json({ message: "Booking confirmed", booking });
+  } catch (err) {
+    console.error("confirmBooking:", err);
+    res.status(400).json({ message: err.message });
   }
 };

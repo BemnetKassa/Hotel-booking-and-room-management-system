@@ -1,30 +1,44 @@
-import Payment from "../models/payment.model.js";
+// src/controllers/payment.controller.js
+import * as paymentService from "../services/payment.service.js";
+import { io } from "../server.js"; // ensure server.js exports io
 
-// Process payment
+/**
+ * Public endpoint — process a payment for a booking
+ * body: { bookingId, amount, method }
+ */
 export const processPayment = async (req, res) => {
   try {
     const { bookingId, amount, method } = req.body;
+    if (!bookingId || !amount || !method) return res.status(400).json({ message: "Missing fields" });
 
-    const payment = await Payment.create({
-      booking: bookingId,
-      amount,
-      method,
-      user: req.user.id,
-      status: "Completed",
-    });
+    // In production: call payment gateway (CBE/Telebirr/Visa) and verify result before creating transaction
+    const transaction = await paymentService.processPayment({ bookingId, amount, method });
 
-    res.status(201).json(payment);
-  } catch (error) {
-    res.status(500).json({ message: "Payment failed" });
+    // Emit event for admin dashboards
+    io.emit("payment-processed", transaction);
+
+    res.status(201).json({ message: "Payment processed", transaction });
+  } catch (err) {
+    console.error("processPayment:", err);
+    res.status(400).json({ message: err.message });
   }
 };
 
-// Get all payments
-export const getPayments = async (req, res) => {
+/**
+ * Admin endpoint — list transactions
+ */
+export const getTransactions = async (req, res) => {
   try {
-    const payments = await Payment.find().populate("user booking");
-    res.json(payments);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch payments" });
+    const filters = {
+      method: req.query.method,
+      status: req.query.status,
+      from: req.query.from,
+      to: req.query.to,
+    };
+    const transactions = await paymentService.getAllTransactions(filters);
+    res.json(transactions);
+  } catch (err) {
+    console.error("getTransactions:", err);
+    res.status(500).json({ message: err.message });
   }
 };

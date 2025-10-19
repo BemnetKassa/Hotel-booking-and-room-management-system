@@ -1,3 +1,4 @@
+// src/routes/room.routes.js
 import express from "express";
 import {
   getRooms,
@@ -5,15 +6,17 @@ import {
   createRoom,
   updateRoom,
   deleteRoom,
+  updateRoomStatus,
 } from "../controllers/room.controller.js";
-import { protect } from "../middlewares/auth.middleware.js";
+import { protect } from "../middleware/auth.middleware.js"; // admin protection for create/update/delete
 
 const router = express.Router();
 
-router.get("/", getRooms);
-router.get("/:id", getRoomById);
-router.post("/", protect, createRoom);
-router.put("/:id", protect, updateRoom);
-router.delete("/:id", protect, deleteRoom);
+router.get("/", getRooms);           // public: list rooms (customers)
+router.get("/:id", getRoomById);    // public: single room
+router.post("/", protect, createRoom); // admin
+router.put("/:id", protect, updateRoom); // admin
+router.delete("/:id", protect, deleteRoom); // admin
+router.patch("/:id/status", protect, updateRoomStatus); // admin update status
 
 export default router;
