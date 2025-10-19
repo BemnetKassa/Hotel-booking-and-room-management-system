@@ -1,3 +1,4 @@
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,43 +13,44 @@ model User {
   name      String
   email     String   @unique
   password  String
-  role      String   @default("customer")
-  bookings  Booking[]
+  role      String   @default("admin")
   createdAt DateTime @default(now())
 }
 
 model Room {
-  id        Int      @id @default(autoincrement())
-  name      String
-  type      String
-  price     Float
-  status    String   @default("Vacant") // Vacant | Occupied | Maintenance | Cleaning
-  bookings  Booking[]
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  roomNumber  String   @unique
+  type        String
+  price       Float
+  status      String   @default("Vacant") // Vacant, Occupied, Ready for Cleaning, Under Maintenance
+  description String?
+  bookings    Booking[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Booking {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  roomId     Int
-  startDate  DateTime
-  endDate    DateTime
-  totalPrice Float
-  status     String   @default("Pending") // Pending | Confirmed | Cancelled
-  createdAt  DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-  room Room @relation(fields: [roomId], references: [id])
-  payments Payment[]
+  id            Int      @id @default(autoincrement())
+  roomId        Int
+  room          Room     @relation(fields: [roomId], references: [id])
+  customerName  String
+  phoneNumber   String
+  email         String?
+  checkInDate   DateTime
+  checkOutDate  DateTime
+  status        String   @default("Pending") // Pending, Confirmed, Cancelled, CheckedOut
+  totalAmount   Float
+  paymentStatus String   @default("Unpaid")  // Unpaid, Paid
+  transactions  Transaction[]
+  createdAt     DateTime @default(now())
 }
 
-model Payment {
-  id         Int      @id @default(autoincrement())
-  bookingId  Int
-  method     String
-  amount     Float
-  status     String   @default("Success")
-  createdAt  DateTime @default(now())
-
-  booking Booking @relation(fields: [bookingId], references: [id])
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  bookingId   Int
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  amount      Float
+  method      String
+  status      String   @default("Pending")
+  createdAt   DateTime @default(now())
 }
