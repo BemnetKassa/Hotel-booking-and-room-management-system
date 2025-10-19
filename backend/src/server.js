@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import roomRoutes from './routes/roomRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
 
 dotenv.config();
 const app = express();
@@ -13,6 +15,8 @@ app.use(express.json());
 
 // routes
 app.use('/api/rooms', roomRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
