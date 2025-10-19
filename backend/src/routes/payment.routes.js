@@ -1,10 +1,14 @@
+// src/routes/payment.routes.js
 import express from "express";
-import { processPayment, getPayments } from "../controllers/payment.controller.js";
-import { protect } from "../middlewares/auth.middleware.js";
+import { processPayment, getTransactions } from "../controllers/payment.controller.js";
+import { protect, adminOnly } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/", protect, processPayment);
-router.get("/", protect, getPayments);
+// Public: customers can call to pay (but in production you'd validate callers, possibly via booking token)
+router.post("/", processPayment);
+
+// Admin: view transactions
+router.get("/", protect, adminOnly, getTransactions);
 
 export default router;
