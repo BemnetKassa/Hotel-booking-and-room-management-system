@@ -13,3 +13,13 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Room {
+  id        Int      @id @default(autoincrement())
+  number    Int      @unique
+  floor     Int
+  status    String   @default("Vacant")
+  price     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
