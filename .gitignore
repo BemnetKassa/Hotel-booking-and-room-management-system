@@ -1,0 +1,25 @@
+node_modules/
+npm-debug.log*
+pnpm-lock.yaml
+yarn.lock
+
+# dotenv
+.env
+.env.*.local
+
+# Next.js
+.next/
+out/
+build/
+
+# Frontend specific
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+
+# Prisma
+prisma/dev.db
+
+# Logs
+logs/
+*.log
