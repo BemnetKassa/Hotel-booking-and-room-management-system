@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
-// Moved to public/dashboard/page.tsx
-export default function AdminDashboard() {
+export default function PublicDashboard() {
   const [stats, setStats] = useState({
     totalRooms: 0,
     occupiedRooms: 0,

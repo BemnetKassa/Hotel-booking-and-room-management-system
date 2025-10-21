@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 const RoomPage = () => {
   return (
@@ -10,6 +11,9 @@ const RoomPage = () => {
         Browse through our available rooms and find the perfect fit for your stay.
         Room management features will be added soon.
       </p>
+      <Link href="/public/dashboard" className="mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+        Go to Dashboard
+      </Link>
     </div>
   );
 };
