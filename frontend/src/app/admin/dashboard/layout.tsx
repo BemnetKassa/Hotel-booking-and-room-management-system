@@ -11,11 +11,6 @@ export default function AdminDashboardLayout({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // allow passing onClose without changing the AdminSidebar component's types
-  const AdminSidebarWithClose = AdminSidebar as React.ComponentType<{ onClose?: () => void }>;
-  // allow passing onMenuClick without changing the AdminHeader component's types
-  const AdminHeaderWithMenu = AdminHeader as React.ComponentType<{ onMenuClick?: () => void }>;
-
   return (
     <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar (hidden on small screens) */}
@@ -24,12 +19,12 @@ export default function AdminDashboardLayout({
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0 transition-transform duration-300`}
       >
-        <AdminSidebarWithClose onClose={() => setIsSidebarOpen(false)} />
+        <AdminSidebar onClose={() => setIsSidebarOpen(false)} />
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen">
-        <AdminHeaderWithMenu onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <AdminHeader onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
         <main className="p-4 sm:p-6 overflow-auto">{children}</main>
       </div>
 

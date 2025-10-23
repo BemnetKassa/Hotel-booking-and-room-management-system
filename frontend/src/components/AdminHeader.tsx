@@ -17,5 +17,6 @@ export default function AdminHeader({
       </button>
       <h1 className="text-lg font-semibold text-gray-800">Admin Dashboard</h1>
     </header>
+    
   );
 }
