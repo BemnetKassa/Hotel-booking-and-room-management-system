@@ -1,7 +1,7 @@
 "use client";
 
 import { AdminAuthProvider } from "@/context/adminAuthContext";
-import "@/styles/admin.css"; // optional, for admin-specific global styles
+
 
 export default function AdminRootLayout({
   children,
