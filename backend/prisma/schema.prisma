@@ -1,3 +1,15 @@
+
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
 model Message {
   id        Int      @id @default(autoincrement())
   sender    User     @relation("SentMessages", fields: [senderId], references: [id])
@@ -11,16 +23,6 @@ model Message {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-// prisma/schema.prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
 model User {
   id        Int      @id @default(autoincrement())
   name      String
