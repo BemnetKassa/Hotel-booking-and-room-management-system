@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import routes from "./routes/index.js"; // ensure index.js exports combined router
-import prisma from "./config/prisma.js";
+
 
 dotenv.config();
 
@@ -54,10 +54,5 @@ const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   // optional: test DB connection
-  try {
-    await prisma.$connect();
-    console.log("Prisma connected to DB");
-  } catch (e) {
-    console.error("Prisma connection error:", e);
-  }
+
 });
