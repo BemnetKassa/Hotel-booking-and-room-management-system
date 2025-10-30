@@ -1,116 +1,136 @@
-// src/services/room.service.js
-import prisma from "../config/prisma.js";
+import { supabase } from "../config/supabase.js";
 
 /**
- * Get rooms optionally filtered (e.g., by status or type).
- * @param {Object} filter - optional filters e.g. { status: 'Vacant' }
+ * Get rooms optionally filtered (e.g., by status, type, price range)
  */
 export const getAllRooms = async (filter = {}) => {
-  const where = {};
-  if (filter.status) where.status = filter.status;
-  if (filter.type) where.type = filter.type;
-  if (filter.minPrice || filter.maxPrice) {
-    where.price = {};
-    if (filter.minPrice) where.price.gte = Number(filter.minPrice);
-    if (filter.maxPrice) where.price.lte = Number(filter.maxPrice);
-  }
+  let query = supabase.from("rooms").select("*").order("room_number", { ascending: true });
 
-  const rooms = await prisma.room.findMany({
-    where,
-    orderBy: { roomNumber: "asc" },
-  });
-  return rooms;
+  if (filter.status) query = query.eq("status", filter.status);
+  if (filter.type) query = query.eq("type", filter.type);
+  if (filter.minPrice) query = query.gte("price", Number(filter.minPrice));
+  if (filter.maxPrice) query = query.lte("price", Number(filter.maxPrice));
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  return data;
 };
 
+/**
+ * Get a room by ID including its bookings
+ */
 export const getRoomById = async (id) => {
-  const room = await prisma.room.findUnique({
-    where: { id: Number(id) },
-    include: {
-      bookings: {
-        orderBy: { checkInDate: "desc" },
-      },
-    },
-  });
+  const { data: room, error } = await supabase
+    .from("rooms")
+    .select("*, bookings(*)")
+    .eq("id", id)
+    .order("bookings.check_in_date", { ascending: false })
+    .single();
+
+  if (error) throw new Error(error.message);
   return room;
 };
 
+/**
+ * Create a new room
+ */
 export const createRoom = async (data) => {
-  const room = await prisma.room.create({
-    data: {
-      roomNumber: data.roomNumber,
-      type: data.type,
-      price: Number(data.price),
-      status: data.status ?? "Vacant",
-      description: data.description ?? null,
-    },
-  });
+  const { data: room, error } = await supabase
+    .from("rooms")
+    .insert([
+      {
+        room_number: data.roomNumber,
+        type: data.type,
+        price: Number(data.price),
+        status: data.status ?? "Vacant",
+        description: data.description ?? null,
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
   return room;
 };
 
+/**
+ * Update room information
+ */
 export const updateRoom = async (id, data) => {
   const updateData = {};
-  if (data.roomNumber) updateData.roomNumber = data.roomNumber;
+  if (data.roomNumber) updateData.room_number = data.roomNumber;
   if (data.type) updateData.type = data.type;
   if (typeof data.price !== "undefined") updateData.price = Number(data.price);
   if (data.status) updateData.status = data.status;
   if (data.description !== undefined) updateData.description = data.description;
 
-  const room = await prisma.room.update({
-    where: { id: Number(id) },
-    data: updateData,
-  });
+  const { data: room, error } = await supabase
+    .from("rooms")
+    .update(updateData)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
   return room;
 };
 
+/**
+ * Delete a room
+ */
 export const deleteRoom = async (id) => {
-  // Optionally: check for future bookings before delete
-  await prisma.room.delete({ where: { id: Number(id) } });
+  const { error } = await supabase.from("rooms").delete().eq("id", id);
+  if (error) throw new Error(error.message);
   return { success: true };
 };
 
 /**
- * Update room status (Vacant, Occupied, Ready for Cleaning, Under Maintenance)
+ * Update room status (Vacant, Occupied, Cleaning, Maintenance)
  */
 export const updateRoomStatus = async (id, status) => {
-  const room = await prisma.room.update({
-    where: { id: Number(id) },
-    data: { status },
-  });
-  return room;
+  const { data, error } = await supabase
+    .from("rooms")
+    .update({ status })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
 };
 
 /**
- * Check availability for a room in a date range:
- * returns true if available (no overlapping confirmed/pending bookings)
+ * Check if a room is available for the given date range
  */
 export const isRoomAvailable = async (roomId, checkInDate, checkOutDate) => {
-  const overlapping = await prisma.booking.findFirst({
-    where: {
-      roomId: Number(roomId),
-      status: { not: "Cancelled" },
-      AND: [
-        { checkInDate: { lt: new Date(checkOutDate) } },
-        { checkOutDate: { gt: new Date(checkInDate) } },
-      ],
-    },
-  });
+  const { data: overlapping, error } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("room_id", roomId)
+    .neq("status", "Cancelled")
+    .lt("check_in_date", checkOutDate)
+    .gt("check_out_date", checkInDate)
+    .maybeSingle(); // returns null if no match
+
+  if (error && error.code !== "PGRST116") throw new Error(error.message); // ignore "no rows" error
+
   return !Boolean(overlapping);
 };
 
 /**
- * Find any room that is available for given dates and optional type.
- * Useful for public booking flow where customer picks availability instead of specific room.
+ * Find an available room for given dates and optional type
  */
 export const findAvailableRoom = async (checkInDate, checkOutDate, type = null) => {
-  // naive approach: fetch rooms (optionally by type) and test each for availability.
-  const rooms = await prisma.room.findMany({
-    where: type ? { type } : {},
-    orderBy: { price: "asc" },
-  });
+  let query = supabase.from("rooms").select("*").order("price", { ascending: true });
+  if (type) query = query.eq("type", type);
 
-  for (const r of rooms) {
-    const ok = await isRoomAvailable(r.id, checkInDate, checkOutDate);
-    if (ok) return r;
+  const { data: rooms, error } = await query;
+  if (error) throw new Error(error.message);
+
+  for (const room of rooms) {
+    const ok = await isRoomAvailable(room.id, checkInDate, checkOutDate);
+    if (ok) return room;
   }
   return null;
 };
