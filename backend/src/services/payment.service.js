@@ -1,69 +1,82 @@
-// src/services/payment.service.js
-import prisma from "../config/prisma.js";
+import { supabase } from "../config/supabase.js";
 
 /**
- * processPayment - records a transaction and updates booking.paymentStatus.
- * This function is a placeholder integration: replace with real gateway call.
- *
- * input: { bookingId, amount, method, status } // status could be "Completed" or "Failed"
+ * processPayment - records a transaction and updates booking.payment_status.
+ * input: { bookingId, amount, method }
  */
 export const processPayment = async ({ bookingId, amount, method }) => {
-  // validate booking exists
-  const booking = await prisma.booking.findUnique({ where: { id: Number(bookingId) } });
-  if (!booking) throw new Error("Booking not found");
+  // 1️⃣ Validate booking exists
+  const { data: booking, error: bookingError } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", bookingId)
+    .single();
 
-  // Create transaction record (initially Pending)
-  const transaction = await prisma.transaction.create({
-    data: {
-      bookingId: booking.id,
-      amount: Number(amount),
-      method,
-      status: "Completed", // assume success for now; change after gateway response
-    },
-  });
+  if (bookingError || !booking) throw new Error("Booking not found");
 
-  // Update booking payment status and, if desired, booking status
-  await prisma.booking.update({
-    where: { id: booking.id },
-    data: {
-      paymentStatus: "Paid",
+  // 2️⃣ Create transaction record (assume success for now)
+  const { data: transaction, error: txError } = await supabase
+    .from("transactions")
+    .insert([
+      {
+        booking_id: booking.id,
+        amount: Number(amount),
+        method,
+        status: "Completed", // change if integrating real gateway
+      },
+    ])
+    .select()
+    .single();
+
+  if (txError) throw new Error(txError.message);
+
+  // 3️⃣ Update booking payment + status
+  const { error: updateError } = await supabase
+    .from("bookings")
+    .update({
+      payment_status: "Paid",
       status: booking.status === "Pending" ? "Confirmed" : booking.status,
-    },
-  });
+    })
+    .eq("id", booking.id);
 
-  // Optionally update room status if check-in is current
+  if (updateError) throw new Error(updateError.message);
+
+  // 4️⃣ Optionally mark room as occupied if check-in is current
   const now = new Date();
-  if (booking.checkInDate <= now && booking.checkOutDate > now) {
-    await prisma.room.update({
-      where: { id: booking.roomId },
-      data: { status: "Occupied" },
-    });
+  if (new Date(booking.check_in_date) <= now && new Date(booking.check_out_date) > now) {
+    const { error: roomError } = await supabase
+      .from("rooms")
+      .update({ status: "Occupied" })
+      .eq("id", booking.room_id);
+
+    if (roomError) throw new Error(roomError.message);
   }
 
-  // Return transaction with booking include
-  const result = await prisma.transaction.findUnique({
-    where: { id: transaction.id },
-    include: { booking: true },
-  });
+  // 5️⃣ Return transaction + booking info
+  const { data: fullTx, error: fetchError } = await supabase
+    .from("transactions")
+    .select("*, bookings(*)")
+    .eq("id", transaction.id)
+    .single();
 
-  return result;
+  if (fetchError) throw new Error(fetchError.message);
+
+  return fullTx;
 };
 
 export const getAllTransactions = async (filters = {}) => {
-  const where = {};
-  if (filters.method) where.method = filters.method;
-  if (filters.status) where.status = filters.status;
-  if (filters.from || filters.to) {
-    where.createdAt = {};
-    if (filters.from) where.createdAt.gte = new Date(filters.from);
-    if (filters.to) where.createdAt.lte = new Date(filters.to);
-  }
+  let query = supabase
+    .from("transactions")
+    .select("*, bookings(*)")
+    .order("created_at", { ascending: false });
 
-  const transactions = await prisma.transaction.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    include: { booking: true },
-  });
+  if (filters.method) query = query.eq("method", filters.method);
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.from) query = query.gte("created_at", filters.from);
+  if (filters.to) query = query.lte("created_at", filters.to);
 
-  return transactions;
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  return data;
 };

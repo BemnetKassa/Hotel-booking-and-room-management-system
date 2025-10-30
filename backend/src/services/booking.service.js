@@ -1,21 +1,6 @@
-// src/services/booking.service.js
-import prisma from "../config/prisma.js";
+import { supabase } from "../config/supabase.js";
 import { isRoomAvailable, updateRoomStatus } from "./room.service.js";
 
-/**
- * Create a booking. If roomId provided -> try book that room (check availability).
- * If roomId not provided, function can pick a room (use findAvailableRoom instead outside).
- *
- * bookingData: {
- *   roomId (optional),
- *   customerName,
- *   phoneNumber,
- *   email (optional),
- *   checkInDate,
- *   checkOutDate,
- *   totalAmount
- * }
- */
 export const createBooking = async (bookingData) => {
   const {
     roomId,
@@ -27,7 +12,6 @@ export const createBooking = async (bookingData) => {
     totalAmount,
   } = bookingData;
 
-  // validate dates
   const inDate = new Date(checkInDate);
   const outDate = new Date(checkOutDate);
   if (inDate >= outDate) throw new Error("checkOutDate must be after checkInDate");
@@ -35,17 +19,24 @@ export const createBooking = async (bookingData) => {
   let roomToBook = null;
 
   if (roomId) {
-    // verify room exists
-    const room = await prisma.room.findUnique({ where: { id: Number(roomId) } });
-    if (!room) throw new Error("Room not found");
+    // check room exists
+    const { data: room, error: roomError } = await supabase
+      .from("rooms")
+      .select("*")
+      .eq("id", roomId)
+      .single();
+
+    if (roomError || !room) throw new Error("Room not found");
 
     const available = await isRoomAvailable(roomId, checkInDate, checkOutDate);
-    if (!available) throw new Error("Room is not available for selected dates");
+    if (!available) throw new Error("Room not available for these dates");
 
     roomToBook = room;
   } else {
-    // caller should call findAvailableRoom to get a room; we include a fallback
-    const rooms = await prisma.room.findMany();
+    // fallback to first available room
+    const { data: rooms, error } = await supabase.from("rooms").select("*");
+    if (error) throw new Error(error.message);
+
     for (const r of rooms) {
       const available = await isRoomAvailable(r.id, checkInDate, checkOutDate);
       if (available) {
@@ -53,25 +44,31 @@ export const createBooking = async (bookingData) => {
         break;
       }
     }
+
     if (!roomToBook) throw new Error("No rooms available for selected dates");
   }
 
-  const booking = await prisma.booking.create({
-    data: {
-      roomId: roomToBook.id,
-      customerName,
-      phoneNumber,
-      email: email ?? null,
-      checkInDate: inDate,
-      checkOutDate: outDate,
-      totalAmount: Number(totalAmount ?? 0),
-      status: "Pending",
-      paymentStatus: "Unpaid",
-    },
-  });
+  const { data: booking, error: createError } = await supabase
+    .from("bookings")
+    .insert([
+      {
+        room_id: roomToBook.id,
+        customer_name: customerName,
+        phone_number: phoneNumber,
+        email,
+        check_in_date: checkInDate,
+        check_out_date: checkOutDate,
+        total_amount: totalAmount ?? 0,
+        status: "Pending",
+        payment_status: "Unpaid",
+      },
+    ])
+    .select()
+    .single();
 
-  // Optionally mark room as Occupied immediately or wait until check-in/confirmation.
-  // We'll update to "Occupied" here if booking overlaps current date.
+  if (createError) throw new Error(createError.message);
+
+  // Update room status if currently occupied
   const now = new Date();
   if (inDate <= now && outDate > now) {
     await updateRoomStatus(roomToBook.id, "Occupied");
@@ -81,94 +78,98 @@ export const createBooking = async (bookingData) => {
 };
 
 export const getBookingById = async (id) => {
-  const booking = await prisma.booking.findUnique({
-    where: { id: Number(id) },
-    include: { room: true },
-  });
-  return booking;
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("*, rooms(*)")
+    .eq("id", id)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
 };
 
 export const getAllBookings = async (filters = {}) => {
-  // filters can include status, roomId, date ranges
-  const where = {};
-  if (filters.status) where.status = filters.status;
-  if (filters.roomId) where.roomId = Number(filters.roomId);
-  if (filters.from || filters.to) {
-    where.AND = [];
-    if (filters.from) where.AND.push({ checkInDate: { gte: new Date(filters.from) } });
-    if (filters.to) where.AND.push({ checkOutDate: { lte: new Date(filters.to) } });
-  }
+  let query = supabase.from("bookings").select("*, rooms(*)").order("created_at", { ascending: false });
 
-  const bookings = await prisma.booking.findMany({
-    where,
-    include: { room: true },
-    orderBy: { createdAt: "desc" },
-  });
-  return bookings;
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.roomId) query = query.eq("room_id", filters.roomId);
+  if (filters.from) query = query.gte("check_in_date", filters.from);
+  if (filters.to) query = query.lte("check_out_date", filters.to);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return data;
 };
 
 export const getBookingsByRoom = async (roomId) => {
-  return await prisma.booking.findMany({
-    where: { roomId: Number(roomId) },
-    include: { room: true },
-    orderBy: { checkInDate: "desc" },
-  });
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("*, rooms(*)")
+    .eq("room_id", roomId)
+    .order("check_in_date", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return data;
 };
 
-/**
- * Cancel booking: marks booking as Cancelled and set room status to Vacant if no other overlapping bookings.
- */
 export const cancelBooking = async (id) => {
-  const booking = await prisma.booking.findUnique({ where: { id: Number(id) } });
-  if (!booking) throw new Error("Booking not found");
+  const { data: booking, error: findError } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", id)
+    .single();
 
-  await prisma.booking.update({
-    where: { id: Number(id) },
-    data: { status: "Cancelled" },
-  });
+  if (findError || !booking) throw new Error("Booking not found");
 
-  // Check if room still has other active bookings overlapping now; if none, set to Vacant
+  const { error: cancelError } = await supabase
+    .from("bookings")
+    .update({ status: "Cancelled" })
+    .eq("id", id);
+
+  if (cancelError) throw new Error(cancelError.message);
+
   const now = new Date();
-  const overlapping = await prisma.booking.findFirst({
-    where: {
-      roomId: booking.roomId,
-      status: { not: "Cancelled" },
-      AND: [
-        { checkInDate: { lt: now } },
-        { checkOutDate: { gt: now } },
-      ],
-    },
-  });
+  const { data: overlapping } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("room_id", booking.room_id)
+    .neq("status", "Cancelled")
+    .lt("check_in_date", now.toISOString())
+    .gt("check_out_date", now.toISOString())
+    .maybeSingle();
 
   if (!overlapping) {
-    await prisma.room.update({
-      where: { id: booking.roomId },
-      data: { status: "Vacant" },
-    });
+    await supabase
+      .from("rooms")
+      .update({ status: "Vacant" })
+      .eq("id", booking.room_id);
   }
 
   return { success: true };
 };
 
-/**
- * Confirm booking: set status to Confirmed and optionally change room status.
- */
 export const confirmBooking = async (id) => {
-  const booking = await prisma.booking.findUnique({ where: { id: Number(id) } });
-  if (!booking) throw new Error("Booking not found");
+  const { data: booking, error: findError } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", id)
+    .single();
 
-  await prisma.booking.update({
-    where: { id: Number(id) },
-    data: { status: "Confirmed" },
-  });
+  if (findError || !booking) throw new Error("Booking not found");
 
-  // If booking covers current date -> set room Occupied
+  const { error: updateError } = await supabase
+    .from("bookings")
+    .update({ status: "Confirmed" })
+    .eq("id", id);
+
+  if (updateError) throw new Error(updateError.message);
+
   const now = new Date();
-  if (booking.checkInDate <= now && booking.checkOutDate > now) {
-    await prisma.room.update({
-      where: { id: booking.roomId },
-      data: { status: "Occupied" },
-    });
+  if (booking.check_in_date <= now && booking.check_out_date > now) {
+    await supabase
+      .from("rooms")
+      .update({ status: "Occupied" })
+      .eq("id", booking.room_id);
   }
 
   return { success: true };
