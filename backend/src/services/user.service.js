@@ -1,47 +1,124 @@
-// src/services/user.service.js
-import prisma from "../config/prisma.js";
+import { supabase } from "../config/supabase.js";
 import bcrypt from "bcryptjs";
 import { signToken } from "../utils/jwt.js";
 
 /**
- * createAdmin - create an admin user (for initial setup)
+ * createAdmin - Create an admin user (for initial setup)
  */
 export const createAdmin = async ({ name, email, password }) => {
-  const existing = await prisma.user.findUnique({ where: { email } });
+  // Check if user already exists
+  const { data: existing, error: findError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
+
   if (existing) throw new Error("Email already in use");
+  if (findError && findError.code !== "PGRST116") throw findError; // ignore "No record found"
 
   const hashed = await bcrypt.hash(password, 10);
 
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashed,
-      role: "admin",
-    },
-  });
+  const { data, error } = await supabase.from("users").insert([
+    { name, email, password: hashed, role: "admin" },
+  ]).select().single();
 
-  const token = signToken({ id: user.id, role: user.role });
-  return { user, token };
+  if (error) throw error;
+
+  const token = signToken({ id: data.id, role: data.role });
+  const { password: _, ...safeUser } = data;
+  return { user: safeUser, token };
 };
 
+/**
+ * createUser - Create a regular user (for customer registration)
+ */
+export const createUser = async ({ name, email, password }) => {
+  const { data: existing, error: findError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
+
+  if (existing) throw new Error("Email already in use");
+  if (findError && findError.code !== "PGRST116") throw findError;
+
+  const hashed = await bcrypt.hash(password, 10);
+
+  const { data, error } = await supabase.from("users").insert([
+    { name, email, password: hashed, role: "user" },
+  ]).select().single();
+
+  if (error) throw error;
+
+  const token = signToken({ id: data.id, role: data.role });
+  const { password: _, ...safeUser } = data;
+  return { user: safeUser, token };
+};
+
+/**
+ * loginAdmin - Authenticate only admin users
+ */
 export const loginAdmin = async ({ email, password }) => {
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new Error("Invalid credentials");
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
+
+  if (error || !user) throw new Error("Invalid credentials");
+  if (user.role !== "admin") throw new Error("Access denied");
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error("Invalid credentials");
 
   const token = signToken({ id: user.id, role: user.role });
-  return { user, token };
+  const { password: _, ...safeUser } = user;
+  return { user: safeUser, token };
 };
 
+/**
+ * loginUser - Authenticate regular users
+ */
+export const loginUser = async ({ email, password }) => {
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
+
+  if (error || !user) throw new Error("Invalid credentials");
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) throw new Error("Invalid credentials");
+
+  const token = signToken({ id: user.id, role: user.role });
+  const { password: _, ...safeUser } = user;
+  return { user: safeUser, token };
+};
+
+/**
+ * getAllUsers - Retrieve all users (admin view)
+ */
 export const getAllUsers = async () => {
-  const users = await prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, createdAt: true } });
-  return users;
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, name, email, role, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
 };
 
+/**
+ * getUserById - Retrieve a single user by ID
+ */
 export const getUserById = async (id) => {
-  const user = await prisma.user.findUnique({ where: { id: Number(id) }, select: { id: true, name: true, email: true, role: true, createdAt: true } });
-  return user;
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, name, email, role, created_at")
+    .eq("id", id)
+    .single();
+
+  if (error) throw new Error("User not found");
+  return data;
 };
