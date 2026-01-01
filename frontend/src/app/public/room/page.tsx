@@ -8,7 +8,7 @@ const RoomPage = () => {
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4 relative"
       style={{
-        backgroundImage: `linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.95)), url('/room2.webp')`,
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.65), rgba(255,255,255,0.75)), url('/room2.webp')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
