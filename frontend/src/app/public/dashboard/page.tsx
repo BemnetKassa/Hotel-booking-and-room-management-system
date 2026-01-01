@@ -21,7 +21,15 @@ export default function PublicDashboard() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-yellow-50 py-10 px-4">
+    <div
+      className="min-h-screen relative py-10 px-4 flex flex-col justify-center items-center"
+      style={{
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.55), rgba(255,255,255,0.75)), url('/room.webp')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
       <h1 className="text-4xl font-extrabold text-blue-700 mb-10 text-center drop-shadow-lg animate-fade-in">Dashboard Overview</h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto">

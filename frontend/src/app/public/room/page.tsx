@@ -5,7 +5,15 @@ import Link from "next/link";
 
 const RoomPage = () => {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-4 relative"
+      style={{
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.95)), url('/room2.webp')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
       <h1 className="text-3xl font-semibold text-gray-800 mb-4">Available Rooms</h1>
       <p className="text-gray-600 text-center max-w-md">
         Browse through our available rooms and find the perfect fit for your stay.
