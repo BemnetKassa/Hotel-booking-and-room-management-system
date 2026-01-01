@@ -12,7 +12,7 @@
     "axios": "^1.12.2",
     "lightningcss": "^1.30.2",
     "lucide-react": "^0.546.0",
-    "next": "latest",
+    "next": "^16.1.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hot-toast": "^2.6.0",
