@@ -46,7 +46,15 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4"
+     style={{
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.75), rgba(255,255,255,0.55)), url('/room.webp')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      
       <div className="bg-white w-full max-w-sm rounded-xl shadow-md p-6 space-y-4">
         <h2 className="text-2xl font-bold text-center text-gray-800">
           Admin Login

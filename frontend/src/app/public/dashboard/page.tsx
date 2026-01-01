@@ -24,7 +24,7 @@ export default function PublicDashboard() {
     <div
       className="min-h-screen relative py-10 px-4 flex flex-col justify-center items-center"
       style={{
-        backgroundImage: `linear-gradient(rgba(255,255,255,0.55), rgba(255,255,255,0.75)), url('/room.webp')`,
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.55), rgba(255,255,255,0.55)), url('/room.webp')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
